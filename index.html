@@ -88,10 +88,23 @@
     .final-score { font-size: 58px; color: var(--purple); font-weight: 800; letter-spacing: -3px; margin: 20px 0 0; line-height: 1.3; }
     .final-score small { font-size: 20px; color: var(--muted); letter-spacing: 0; font-weight: 500; }
     .result-caption { color: var(--muted); font-size: 12px; margin-bottom: 25px; }
+    .high-score { margin: 0 0 20px; color: var(--muted); font-size: 13px; }
+    .high-score strong { color: var(--purple); }
+    .result-status { min-height: 1.65em; margin: 8px 0; color: var(--muted); font-size: 12px; }
+    .manual-copy { margin: 10px 0 18px; text-align: left; }
+    .manual-copy label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; }
+    .manual-copy textarea { width: 100%; min-height: 76px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--option); color: var(--text); font: inherit; resize: vertical; }
+    .result-copy-button { margin: 0 auto 22px; max-width: 250px; }
     .result-details { display: flex; justify-content: space-around; border-block: 1px solid var(--line); padding: 18px 0; margin-bottom: 24px; font-size: 12px; color: var(--muted); }
     .result-details strong { display: block; color: var(--text); font-size: 19px; }
     details { text-align: left; font-size: 13px; margin-top: 18px; }
     summary { color: var(--muted); cursor: pointer; }
+    .review-filters { display: flex; gap: 8px; margin: 12px 0 4px; }
+    .review-filter { padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--option); color: var(--text); cursor: pointer; font-size: 12px; }
+    .review-filter[aria-pressed="true"] { border-color: var(--purple); background: var(--purple-soft); color: var(--purple); font-weight: 700; }
+    .review-count, .review-empty { color: var(--muted); font-size: 12px; }
+    .review-count { margin: 8px 0; }
+    .review-empty { margin: 12px 0; }
     .review-item { padding: 13px 0; border-bottom: 1px solid var(--line); }
     .review-item p { margin: 3px 0; color: var(--muted); font-size: 12px; }
     .review-item b { color: var(--green); }
@@ -187,8 +200,25 @@
           <div><strong id="wrong-count"></strong>놓친 문제</div>
           <div><strong id="accuracy"></strong>정답률</div>
         </div>
+        <p class="high-score">최고 기록 <strong id="high-score">아직 없음</strong></p>
+        <p id="high-score-status" class="result-status" role="status" aria-live="polite"></p>
+        <button class="next result-copy-button" id="copy-result">결과 복사</button>
+        <p id="copy-status" class="result-status" role="status" aria-live="polite"></p>
+        <div class="manual-copy" id="manual-copy" hidden>
+          <label for="share-text">아래 문구를 선택해 직접 복사해주세요.</label>
+          <textarea id="share-text" readonly></textarea>
+        </div>
         <button class="next" id="restart">다시 탐사하기 <span aria-hidden="true">↻</span></button>
-        <details><summary>탐사 기록 살펴보기</summary><div id="review"></div></details>
+        <details>
+          <summary>탐사 기록 살펴보기</summary>
+          <div class="review-filters" role="group" aria-label="복습할 문제 필터">
+            <button type="button" class="review-filter" data-filter="all" aria-pressed="true">전체</button>
+            <button type="button" class="review-filter" data-filter="incorrect" aria-pressed="false">오답만</button>
+          </div>
+          <p id="review-count" class="review-count" role="status" aria-live="polite"></p>
+          <p id="review-empty" class="review-empty" role="status" aria-live="polite" hidden></p>
+          <div id="review"></div>
+        </details>
       </div>
     </section>
     <p class="bottom-note"><span aria-hidden="true">☄</span> 서두르지 않아도 괜찮아요. 우주는 기다려주니까요.</p>
@@ -212,11 +242,16 @@
     let score = 0;
     let answered = false;
     let answers = [];
+    let reviewFilter = "all";
+    let resultShareText = "";
+    let resultVersion = 0;
+    let copyRequestVersion = 0;
     let soundEnabled = true;
     let audioContext;
     let soundOutput;
     let soundVersion = 0;
     const activeTones = new Set();
+    const highScoreKey = "orbit-quiz-high-score-v1";
 
     function stopSound() {
       soundVersion++;
@@ -323,6 +358,86 @@
       document.querySelector('[role="progressbar"]').setAttribute("aria-valuenow", answers.length);
     }
 
+    function renderReview() {
+      const incorrectCount = answers.reduce((count, choice, position) =>
+        count + (choice === questions[position].answer ? 0 : 1), 0);
+      const showingIncorrect = reviewFilter === "incorrect";
+      const visibleQuestions = questions
+        .map((item, position) => ({ item, position }))
+        .filter(({ position }) => !showingIncorrect || answers[position] !== questions[position].answer);
+      $("review-count").textContent = `복습할 문제 ${visibleQuestions.length}개`;
+      $("review-empty").textContent = showingIncorrect ? "틀린 문제가 없어요. 모든 문제를 맞혔어요!" : "";
+      $("review-empty").hidden = !showingIncorrect || incorrectCount > 0;
+      $("review").replaceChildren();
+      visibleQuestions.forEach(({ item, position }) => {
+        const row = document.createElement("div");
+        row.className = "review-item";
+        const title = document.createElement("strong");
+        title.textContent = `${answers[position] === item.answer ? "✓" : "×"} ${position + 1}. ${item.question}`;
+        const selected = document.createElement("p");
+        selected.textContent = `내 답: ${item.options[answers[position]]}`;
+        const answer = document.createElement("b");
+        answer.textContent = `정답: ${item.options[item.answer]}`;
+        const explanation = document.createElement("p");
+        explanation.textContent = item.explanation;
+        row.append(title, selected, answer, explanation);
+        $("review").append(row);
+      });
+    }
+
+    function updateHighScore() {
+      $("high-score-status").textContent = "";
+      let savedValue;
+      try {
+        savedValue = window.localStorage.getItem(highScoreKey);
+      } catch (error) {
+        $("high-score").textContent = "확인할 수 없음";
+        $("high-score-status").textContent = "브라우저 저장소에 접근할 수 없어 최고 기록을 불러오지 못했어요.";
+        return;
+      }
+
+      if (savedValue === null) {
+        try {
+          window.localStorage.setItem(highScoreKey, String(score));
+        } catch (error) {
+          $("high-score").textContent = "저장하지 못했어요";
+          $("high-score-status").textContent = "첫 기록을 저장하지 못했어요. 브라우저 저장소를 확인해주세요.";
+          return;
+        }
+        $("high-score").textContent = `${score}점`;
+        $("high-score-status").textContent = "첫 탐사 기록을 저장했어요!";
+        return;
+      }
+
+      if (!/^(0|[1-9]\d*)$/.test(savedValue)) {
+        $("high-score").textContent = "확인할 수 없음";
+        $("high-score-status").textContent = "저장된 최고 기록이 올바르지 않아 불러오지 못했어요.";
+        return;
+      }
+
+      const previousHighScore = Number(savedValue);
+      if (!Number.isSafeInteger(previousHighScore) || previousHighScore > questions.length * 10 || previousHighScore % 10 !== 0) {
+        $("high-score").textContent = "확인할 수 없음";
+        $("high-score-status").textContent = "저장된 최고 기록이 올바르지 않아 불러오지 못했어요.";
+        return;
+      }
+
+      if (score > previousHighScore) {
+        try {
+          window.localStorage.setItem(highScoreKey, String(score));
+        } catch (error) {
+          $("high-score").textContent = `${previousHighScore}점`;
+          $("high-score-status").textContent = "신기록을 저장하지 못했어요. 이전 최고 기록을 표시합니다.";
+          return;
+        }
+        $("high-score").textContent = `${score}점`;
+        $("high-score-status").textContent = "새로운 최고 기록을 세웠어요!";
+        return;
+      }
+
+      $("high-score").textContent = `${previousHighScore}점`;
+    }
+
     function selectAnswer(choice) {
       if (answered) return;
       answered = true;
@@ -360,6 +475,7 @@
     }
 
     function showResults() {
+      resultVersion++;
       $("quiz").hidden = true;
       $("results").hidden = false;
       const outstanding = score / 10 >= 8;
@@ -391,24 +507,53 @@
       $("correct-count").textContent = `${score / 10}개`;
       $("wrong-count").textContent = `${questions.length - score / 10}개`;
       $("accuracy").textContent = `${score}%`;
-      $("review").replaceChildren();
-      questions.forEach((item, position) => {
-        const row = document.createElement("div");
-        row.className = "review-item";
-        const title = document.createElement("strong");
-        title.textContent = `${answers[position] === item.answer ? "✓" : "×"} ${position + 1}. ${item.question}`;
-        const selected = document.createElement("p");
-        selected.textContent = `내 답: ${item.options[answers[position]]}`;
-        const answer = document.createElement("b");
-        answer.textContent = `정답: ${item.options[item.answer]}`;
-        const explanation = document.createElement("p");
-        explanation.textContent = item.explanation;
-        row.append(title, selected, answer, explanation);
-        $("review").append(row);
+      updateHighScore();
+      resultShareText = `${reaction[0]} 궤도 우주 탐험 퀴즈 | ${score}/100점 · ${questions.length}문항 중 ${score / 10}개 정답`;
+      $("copy-status").textContent = "";
+      $("manual-copy").hidden = true;
+      $("share-text").value = resultShareText;
+      reviewFilter = "all";
+      document.querySelectorAll(".review-filter").forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.filter === reviewFilter));
       });
+      renderReview();
       $("result-title").focus({ preventScroll: true });
       window.scrollTo({ top: 0, behavior: "instant" });
     }
+
+    $("copy-result").addEventListener("click", async () => {
+      const currentResultVersion = resultVersion;
+      const currentCopyRequest = ++copyRequestVersion;
+      const shareText = resultShareText;
+      const isCurrentRequest = () => currentResultVersion === resultVersion
+        && currentCopyRequest === copyRequestVersion && !$("results").hidden;
+      try {
+        if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
+          throw new Error("클립보드 API를 사용할 수 없습니다.");
+        }
+        await navigator.clipboard.writeText(shareText);
+        if (!isCurrentRequest()) return;
+        $("manual-copy").hidden = true;
+        $("copy-status").textContent = "결과 문구를 복사했어요.";
+      } catch (error) {
+        if (!isCurrentRequest()) return;
+        $("share-text").value = shareText;
+        $("manual-copy").hidden = false;
+        $("copy-status").textContent = "자동 복사에 실패했어요. 아래 문구를 직접 복사해주세요.";
+        $("share-text").focus();
+        $("share-text").select();
+      }
+    });
+
+    document.querySelectorAll(".review-filter").forEach((button) => {
+      button.addEventListener("click", () => {
+        reviewFilter = button.dataset.filter;
+        document.querySelectorAll(".review-filter").forEach((filterButton) => {
+          filterButton.setAttribute("aria-pressed", String(filterButton === button));
+        });
+        renderReview();
+      });
+    });
 
     $("next").addEventListener("click", () => {
       if (!answered) return;
@@ -416,10 +561,19 @@
       else { index++; renderQuestion(true); }
     });
     $("restart").addEventListener("click", () => {
+      resultVersion++;
+      copyRequestVersion++;
       index = 0; score = 0; answers = [];
+      reviewFilter = "all";
+      resultShareText = "";
+      document.querySelectorAll(".review-filter").forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.filter === reviewFilter));
+      });
       $("results").hidden = true;
       $("quiz").hidden = false;
       document.querySelector("details").open = false;
+      $("copy-status").textContent = "";
+      $("manual-copy").hidden = true;
       $("celebration").replaceChildren();
       $("celebration").hidden = true;
       $("celebration-badge").hidden = true;
