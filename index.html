@@ -16,15 +16,18 @@
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100svh; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.65; }
     body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 8% 25%, #563a963f, transparent 48%), radial-gradient(ellipse at 90% 65%, #155b8038, transparent 46%), radial-gradient(ellipse at 55% 0%, #384e9138, transparent 55%), linear-gradient(145deg, #080c1c, #101329 55%, #070d1b); }
-    body::after { content: ""; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 15% 35%, #ad73dc18, transparent 28%), radial-gradient(ellipse at 75% 45%, #6c5cba20, transparent 32%), radial-gradient(ellipse at 45% 80%, #438dbe12, transparent 28%); }
     button { font: inherit; -webkit-tap-highlight-color: transparent; }
     :focus-visible { outline: 3px solid var(--purple); outline-offset: 4px; }
     button:focus-visible, summary:focus-visible { box-shadow: 0 0 0 6px var(--card); }
     .option:focus-visible { border-color: var(--purple); background: var(--purple-soft); }
     .stars { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
     .stars { z-index: 1; }
-    .stars::before, .stars::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(circle, #f4f1ff 1px, transparent 1.5px), radial-gradient(circle, #a3c9f2 .7px, transparent 1.3px), radial-gradient(circle, #d2b8ff .6px, transparent 1.2px); background-size: 137px 173px, 211px 239px, 83px 127px; background-position: 24px 37px, 82px 109px, 45px 63px; opacity: .65; animation: twinkle 8s ease-in-out infinite; }
-    .stars::after { transform: rotate(180deg); animation-delay: -4s; background-size: 193px 227px, 281px 307px, 157px 109px; }
+    .space-nebula { position: absolute; inset: -8%; background: radial-gradient(ellipse at 15% 35%, #ad73dc30, transparent 32%), radial-gradient(ellipse at 75% 45%, #6c5cba30, transparent 36%), radial-gradient(ellipse at 45% 80%, #438dbe20, transparent 32%); animation: nebula-drift 38s ease-in-out infinite alternate; }
+    .stars::before, .stars::after { content: ""; position: absolute; inset: -280px -240px; background-image: radial-gradient(circle at 24px 37px, #f4f1ff 1px, transparent 1.5px), radial-gradient(circle at 182px 109px, #a3c9f2 .7px, transparent 1.3px), radial-gradient(circle at 85px 233px, #d2b8ff .6px, transparent 1.2px); background-size: 240px 280px; opacity: .5; animation: stars-far 48s linear infinite; }
+    .stars::after { inset: -420px -380px; background-image: radial-gradient(ellipse 1px 2px at 62px 83px, #f4f1ff 65%, transparent), radial-gradient(circle at 292px 319px, #a3c9f2 1px, transparent 1.7px), radial-gradient(circle at 195px 183px, #d2b8ff .8px, transparent 1.4px); background-size: 380px 420px; opacity: .7; animation: stars-near 28s linear infinite; }
+    body:not([data-motion="running"]) .stars::before, body:not([data-motion="running"]) .stars::after,
+    body:not([data-motion="running"]) .space-nebula, body:not([data-motion="running"]) .planet-art { animation-play-state: paused; }
+    body[data-page-hidden] *, body[data-page-hidden] *::before, body[data-page-hidden] *::after { animation-play-state: paused !important; }
     .shell { position: relative; z-index: 2; width: min(100% - 40px, 680px); margin: 0 auto; padding: 16px 0; }
     .brand, header { color: #f1efff; }
     .brand-icon { color: #b6a3ff; }
@@ -36,7 +39,8 @@
     .brand-icon { width: 29px; height: 29px; }
     .edition { font-size: 10px; color: var(--muted); letter-spacing: 2px; font-weight: 600; }
     .brand-tools { display: flex; align-items: center; gap: 12px; }
-    .sound-toggle { border: 1px solid #bba7f044; border-radius: 10px; background: #a88bea1c; color: #e0d6ff; padding: 6px 10px; font-size: 11px; cursor: pointer; min-height: 36px; }
+    .sound-toggle, .motion-toggle { border: 1px solid #bba7f044; border-radius: 10px; background: #a88bea1c; color: #e0d6ff; padding: 6px 10px; font-size: 11px; cursor: pointer; min-height: 36px; white-space: nowrap; }
+    .motion-toggle:disabled { cursor: default; color: #b7bdd5; }
     .sound-status { color: var(--red); font-size: 12px; text-align: right; margin: 6px 0 0; }
     .sound-status:empty { display: none; }
     header { text-align: center; padding: 12px 0 16px; }
@@ -122,7 +126,10 @@
     @keyframes correct-pop { 50% { transform: scale(1.025); } }
     @keyframes shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
     @keyframes appear { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes twinkle { 50% { opacity: .3; } }
+    /* Each star field travels by one tile so its loop has no visible seam. */
+    @keyframes stars-far { to { transform: translate(-240px, 280px); } }
+    @keyframes stars-near { to { transform: translate(-380px, 420px); } }
+    @keyframes nebula-drift { from { transform: translate(-2%, 1%); } to { transform: translate(3%, -2%) scale(1.04); } }
     @keyframes orbit-pulse { from { opacity: .9; box-shadow: 0 0 16px #9e8cda55; } to { opacity: 0; transform: rotateX(55deg) rotate(-25deg) scale(1.8); } }
     @keyframes halo-reveal { from { opacity: 0; } to { opacity: 1; } }
     @keyframes stardust { 0% { opacity: 0; transform: scale(.3); } 15% { opacity: .9; } 65% { opacity: .7; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--spin)); } }
@@ -153,7 +160,7 @@
       .card { padding: 21px; }
       header { padding: 18px 0; }
       h1 { font-size: 28px; }
-      .edition { font-size: 9px; letter-spacing: 1.3px; }
+      .edition { display: none; }
       .brand-tools { gap: 8px; }
       .question-intro { display: block; margin: 6px 0 16px; }
       .universe { height: 128px; margin-bottom: 8px; }
@@ -173,8 +180,8 @@
     }
   </style>
 </head>
-<body>
-  <div class="stars" aria-hidden="true"></div>
+<body data-motion="paused">
+  <div class="stars" aria-hidden="true"><div class="space-nebula"></div></div>
   <main class="shell">
     <div class="brand">
       <div class="wordmark">
@@ -183,6 +190,7 @@
       </div>
       <div class="brand-tools">
         <span class="edition">작은 호기심, 넓은 우주</span>
+        <button type="button" class="motion-toggle" id="motion-toggle" aria-pressed="false" aria-label="배경 움직임">✦ 배경 정지</button>
         <button class="sound-toggle" id="sound-toggle" aria-pressed="true" aria-label="효과음 사용">♪ 소리 켜짐</button>
       </div>
     </div>
@@ -298,6 +306,30 @@
     let soundVersion = 0;
     const activeTones = new Set();
     const highScoreKey = "orbit-quiz-high-score-v1";
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let motionEnabled = true;
+
+    function updateMotion() {
+      const enabled = motionEnabled && !reducedMotion.matches;
+      document.body.dataset.motion = enabled ? "running" : "paused";
+      document.body.toggleAttribute("data-page-hidden", document.hidden);
+      $("motion-toggle").disabled = reducedMotion.matches;
+      $("motion-toggle").setAttribute("aria-pressed", String(enabled));
+      $("motion-toggle").setAttribute("aria-label", reducedMotion.matches
+        ? "배경 움직임 (시스템 동작 줄이기 설정으로 정지)" : "배경 움직임");
+      $("motion-toggle").textContent = enabled ? "✦ 배경 이동" : "✦ 배경 정지";
+      $("motion-toggle").title = reducedMotion.matches
+        ? "시스템의 동작 줄이기 설정에 따라 배경을 정지했어요."
+        : "배경 움직임을 일시정지하거나 다시 시작해요.";
+    }
+
+    $("motion-toggle").addEventListener("click", () => {
+      motionEnabled = !motionEnabled;
+      updateMotion();
+    });
+    reducedMotion.addEventListener("change", updateMotion);
+    document.addEventListener("visibilitychange", updateMotion);
+    updateMotion();
 
     function stopSound() {
       soundVersion++;
@@ -637,7 +669,7 @@
     });
     document.addEventListener("keydown", (event) => {
       if (event.altKey || event.ctrlKey || event.metaKey || event.repeat || $("quiz").hidden) return;
-      if (event.target.closest("#sound-toggle, summary")) return;
+      if (event.target.closest("#sound-toggle, #motion-toggle, summary")) return;
       const options = [...$("options").children];
       if (!answered && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
         event.preventDefault();
